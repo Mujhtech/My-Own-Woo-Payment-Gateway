@@ -15,6 +15,63 @@ WC tested up to: 4.2
  */
 defined('ABSPATH') || die('Direct access is not allow');
 
+register_activation_hook( __FILE__, 'moowpg_admin_notice_example_activation_hook' );
+ 
+
+function moowpg_admin_notice_example_activation_hook() {
+
+    set_transient( 'moowpg-admin-notice-example', true, 5 );
+
+}
+
+if ( !in_array( 'woocommerce/woocommerce.php', apply_filters( 'active_plugins', get_option( 'active_plugins' ) ) ) ) {
+
+	add_action( 'admin_notices', 'moowpg_admin_error_notice' );
+
+	return;
+
+} else {
+
+	add_action( 'admin_notices', 'moowpg_admin_success_notice' );
+
+}
+
+function moowpg_admin_success_notice() { 
+
+	if( get_transient( 'moowpg-admin-notice-example' ) ){
+	?>
+
+        <div class="updated notice is-dismissible">
+            <p>Thank you for using this plugin! <strong>You are awesome</strong>.</p>
+        </div>
+
+<?php
+		delete_transient( 'moowpg-admin-notice-example' );
+	}
+}
+
+function moowpg_admin_error_notice() { ?>
+
+        <div class="error">
+            <p>
+                WooCommerce plugin is not activated. Please install and activate it to use <strong>
+                	My Own Woocommerce Payment Gateway
+                </strong>
+               
+            </p>
+        </div>
+
+<?php
+}
+
+add_filter( 'plugin_action_links_' . plugin_basename(__FILE__), 'add_action_links' );
+function add_action_links ( $links ) {
+    $mylinks = array(
+        '<a href="' . admin_url( 'admin.php?page=wc-settings&tab=checkout&section=moowpg' ) . '">Settings</a>',
+    );
+    return array_merge( $links, $mylinks );
+}
+
 add_filter( 'woocommerce_payment_gateways', 'moowpg_add_gateway_class' );
 
 function moowpg_add_gateway_class( $gateways ) {
@@ -81,7 +138,7 @@ function moowpg_init_gateway_class() {
  			$this->form_fields = array(
 				'enabled' => array(
 					'title'       => 'Enable/Disable',
-					'label'       => 'Enable Misha Gateway',
+					'label'       => 'Enable My Own Woocommerce Payment Gateway',
 					'type'        => 'checkbox',
 					'description' => '',
 					'default'     => 'no'
@@ -134,8 +191,41 @@ function moowpg_init_gateway_class() {
 		 */
 		public function payment_fields() {
  
-		
- 
+			// ok, let's display some description before the payment form
+			if ( $this->description ) {
+				// you can instructions for test mode, I mean test card numbers etc.
+				if ( $this->testmode ) {
+					$this->description .= ' TEST MODE ENABLED. In test mode, you can use the card numbers listed in <a href="#" target="_blank" rel="noopener noreferrer">documentation</a>.';
+					$this->description  = trim( $this->description );
+				}
+				// display the description with <p> tags etc.
+				echo wpautop( wp_kses_post( $this->description ) );
+			}
+		 
+			// I will echo() the form, but you can close PHP tags and print it directly in HTML
+			echo '<fieldset id="wc-' . esc_attr( $this->id ) . '-cc-form" class="wc-credit-card-form wc-payment-form" style="background:transparent;">';
+		 
+			// Add this action hook if you want your custom payment gateway to support it
+			do_action( 'woocommerce_credit_card_form_start', $this->id );
+		 
+			// I recommend to use inique IDs, because other gateways could already use #ccNo, #expdate, #cvc
+			echo '<div class="form-row form-row-wide"><label>Card Number <span class="required">*</span></label>
+				<input id="misha_ccNo" type="text" autocomplete="off">
+				</div>
+				<div class="form-row form-row-first">
+					<label>Expiry Date <span class="required">*</span></label>
+					<input id="misha_expdate" type="text" autocomplete="off" placeholder="MM / YY">
+				</div>
+				<div class="form-row form-row-last">
+					<label>Card Code (CVC) <span class="required">*</span></label>
+					<input id="misha_cvv" type="password" autocomplete="off" placeholder="CVC">
+				</div>
+				<div class="clear"></div>';
+		 
+			do_action( 'woocommerce_credit_card_form_end', $this->id );
+		 
+			echo '<div class="clear"></div></fieldset>';
+		 
 		}
  
 		/*
@@ -164,13 +254,13 @@ function moowpg_init_gateway_class() {
 			}
 		 
 			// let's suppose it is our payment processor JavaScript that allows to obtain a token
-			wp_enqueue_script( 'misha_js', 'https://www.mishapayments.com/api/token.js' );
+			wp_enqueue_script( 'moowpg_js', 'https://sdk.monnify.com/plugin/monnify.js' );
 		 
 			// and this is our custom JS in your plugin directory that works with token.js
-			wp_register_script( 'woocommerce_moowpg', plugins_url( '/assets/js/moowpg.js', __FILE__ ), array( 'jquery', 'misha_js' ) );
+			wp_register_script( 'woocommerce_moowpg', plugins_url( '/assets/js/moowpg.js', __FILE__ ), array( 'jquery', 'moowpg_js' ) );
 		 
 			// in most payment processors you have to use PUBLIC KEY to obtain a token
-			wp_localize_script( 'woocommerce_moowpg', 'misha_params', array(
+			wp_localize_script( 'woocommerce_moowpg', 'moowpg_params', array(
 				'publishableKey' => $this->publishable_key
 			) );
 		 
